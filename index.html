@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Memory Grid — 10 Levels</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #030406;
+      --surface: #070a0d;
+      --surface-elevated: #0c0f14;
+      --border: #14181f;
+      --text: #b0b6c0;
+      --text-muted: #4a5160;
+      --accent: #4a5568;
+      --accent-bright: #7a8fb0;
+      --accent-glow: rgba(74, 85, 104, 0.35);
+      --success: #3d6b56;
+      --error: #6e4040;
+      --panel-bg: #0a0e12;
+      --grid-bg: #0f1419;
+      --grid-border: #1c232c;
+      --cell-bg: #141b22;
+      --cell-border: #1e2832;
+      --cell-size: clamp(44px, 6vmin, 64px);
+      --gap: 6px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .game-panel {
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      max-width: 100%;
+      box-shadow: 0 0 0 1px var(--border), 0 8px 32px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .stats {
+      display: flex;
+      gap: 1.5rem;
+      margin-bottom: 1.25rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+    }
+
+    .stats span {
+      color: var(--text-muted);
+    }
+
+    .stats strong {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .grid-wrap {
+      display: inline-flex;
+      padding: 0.5rem;
+      background: var(--grid-bg);
+      border-radius: 12px;
+      margin: 0 auto 1rem;
+      border: 1px solid var(--grid-border);
+    }
+
+    .grid {
+      display: grid;
+      gap: var(--gap);
+      list-style: none;
+    }
+
+    .grid .cell {
+      width: var(--cell-size);
+      height: var(--cell-size);
+      background: var(--cell-bg);
+      border: 2px solid var(--cell-border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, box-shadow 0.2s;
+    }
+
+    .grid .cell:hover:not(.disabled) {
+      background: var(--surface-elevated);
+      border-color: var(--accent);
+    }
+
+    .grid .cell.highlight {
+      background: var(--accent-bright) !important;
+      border-color: var(--accent-bright) !important;
+      border-width: 3px;
+      box-shadow: 0 0 28px var(--accent-glow), 0 0 14px var(--accent-bright);
+      transform: scale(1.08);
+    }
+
+    .grid.style-rainbow .cell.highlight,
+    .grid.style-rainbow-random .cell.highlight {
+      box-shadow: 0 0 24px var(--cell-glow, var(--accent-glow)), 0 0 12px var(--cell-glow, var(--accent-glow));
+    }
+
+    .grid .cell.correct {
+      background: var(--success);
+      border-color: var(--success);
+    }
+
+    .grid .cell.wrong {
+      background: var(--error);
+      border-color: var(--error);
+      box-shadow: 0 0 20px rgba(110, 64, 64, 0.6);
+      transform: scale(1.05);
+      animation: shake 0.4s ease;
+    }
+
+    .grid .cell.disabled {
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    .grid.style-numbers .cell .cell-num {
+      display: block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: clamp(0.5rem, 2.2vmin, 0.75rem);
+      font-weight: 600;
+      color: var(--text-muted);
+      line-height: var(--cell-size);
+    }
+
+    .grid.style-dark .cell .cell-num,
+    .grid.style-rainbow .cell .cell-num,
+    .grid.style-rainbow-random .cell .cell-num {
+      display: none;
+    }
+
+    .grid.style-rainbow .cell,
+    .grid.style-rainbow-random .cell {
+      border: 2px solid rgba(255,255,255,0.12);
+    }
+
+    .grid.style-rainbow .cell.highlight,
+    .grid.style-rainbow-random .cell.highlight {
+      background: var(--cell-bg-bright, var(--accent-bright)) !important;
+      filter: brightness(1.1);
+      border-color: rgba(255,255,255,0.6) !important;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-4px); }
+      75% { transform: translateX(4px); }
+    }
+
+    .message {
+      display: none;
+    }
+
+    .btn {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 600;
+      padding: 0.65rem 1.25rem;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.2s;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 6px 24px var(--accent-glow);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    .btn-ghost:hover {
+      color: var(--text);
+      border-color: var(--text-muted);
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .chart-toggle-row {
+      margin-top: 0.5rem;
+      display: none;
+      justify-content: center;
+    }
+
+    .chart-toggle-row.show-when-chart-hidden {
+      display: flex;
+    }
+
+    .attempts-chart-wrap {
+      margin-top: 0.5rem;
+      padding: 0.75rem 1rem;
+      padding-top: 2rem;
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      max-width: 100%;
+      position: relative;
+    }
+
+    .attempts-chart-wrap.hidden {
+      display: none;
+    }
+
+    .btn-chart-close {
+      position: absolute;
+      top: 0.4rem;
+      right: 0.4rem;
+      width: 1.5rem;
+      height: 1.5rem;
+      min-width: 0;
+      padding: 0;
+      font-size: 1rem;
+      line-height: 1;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      background: transparent;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .btn-chart-close:hover {
+      color: var(--text);
+      border-color: var(--text-muted);
+    }
+
+    .btn-chart-show {
+      width: 2rem;
+      height: 2rem;
+      min-width: 0;
+      padding: 0;
+      font-size: 0.9rem;
+      line-height: 1;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      background: transparent;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .btn-chart-show:hover {
+      color: var(--text);
+      border-color: var(--text-muted);
+    }
+
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .chart-header .attempts-level-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .chart-header .attempts-level-label strong {
+      color: var(--accent);
+    }
+
+    .total-attempts-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .total-attempts-label strong {
+      color: var(--accent);
+    }
+
+    .game-time-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .game-time-label strong {
+      color: var(--accent);
+    }
+
+    .attempts-chart {
+      width: 100%;
+      height: 100px;
+      max-width: 360px;
+      margin: 0 auto;
+      display: block;
+    }
+
+    .screen {
+      display: none;
+      text-align: center;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    .screen h2 {
+      font-size: 1.35rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .screen p {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      max-width: 320px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .win-badge {
+      font-size: 3rem;
+      margin-bottom: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="screen-game" class="screen active">
+    <div class="game-panel">
+      <div class="stats">
+        <span>Level <strong id="level-num">1</strong> / 10</span>
+        <span>Grid: <strong id="grid-size">—</strong></span>
+        <span>Steps: <strong id="steps-count">—</strong></span>
+      </div>
+      <div class="grid-wrap">
+        <ul id="grid" class="grid style-dark" aria-label="Memory game grid"></ul>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" id="btn-start-new">Start game</button>
+        <button type="button" class="btn btn-ghost" id="btn-replay" disabled>Replay pattern</button>
+        <button type="button" class="btn btn-ghost" id="btn-style">Style: Dark</button>
+      </div>
+    </div>
+    <div class="chart-toggle-row" id="chart-toggle-row">
+      <button type="button" class="btn-chart-show" id="btn-show-chart" title="Show chart">▲</button>
+    </div>
+    <div class="attempts-chart-wrap" id="attempts-chart-wrap">
+      <button type="button" class="btn-chart-close" id="btn-toggle-chart" title="Hide chart" aria-label="Hide chart">×</button>
+      <div class="chart-header">
+        <span class="attempts-level-label">Level <strong id="attempts-level-num">1</strong> Attempts: <strong id="attempts">—</strong></span>
+        <span class="game-time-label">Time: <strong id="game-time">—</strong></span>
+        <span class="total-attempts-label">Total attempts: <strong id="total-attempts">—</strong></span>
+      </div>
+      <svg class="attempts-chart" id="attempts-chart" viewBox="0 0 360 100" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+  </div>
+
+  <div id="screen-win" class="screen">
+    <div class="game-panel">
+      <div class="win-badge">🎉</div>
+      <h2>You won!</h2>
+      <p>You completed all 10 levels.</p>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" id="btn-play-again">Play again</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const TOTAL_LEVELS = 10;
+    const BASE_GRID = 3;
+    const BASE_STEPS = 5;
+    const STEPS_PER_LEVEL = 1;
+    const HIGHLIGHT_MS = 600;
+    const GAP_MS = 150;
+    const STYLE_NAMES = ['Dark', 'Numbers', 'Rainbow', 'Rainbow random'];
+
+    let level = 1;
+    let sequence = [];
+    let playerInput = [];
+    let isShowing = false;
+    let isInputEnabled = false;
+    let gameStarted = false;
+    let attemptsThisLevel = 0;
+    let totalAttemptsThisGame = 0;
+    let gridStyle = 0;
+    let playGeneration = 0;
+    let attemptsAtLevelComplete = [];
+    let timePerLevel = [];
+    let gameStartTime = null;
+    let levelStartTime = null;
+    let timerInterval = null;
+
+    const $ = (id) => document.getElementById(id);
+    const gridEl = $('grid');
+    const levelNumEl = $('level-num');
+    const gridSizeEl = $('grid-size');
+    const stepsCountEl = $('steps-count');
+    const attemptsEl = $('attempts');
+    const attemptsLevelNumEl = $('attempts-level-num');
+    const totalAttemptsEl = $('total-attempts');
+    const gameTimeEl = $('game-time');
+    const btnStartNew = $('btn-start-new');
+    const btnReplay = $('btn-replay');
+    const btnStyle = $('btn-style');
+
+    let audioCtx = null;
+    function getAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      return audioCtx;
+    }
+    function playTone(freq, duration, type) {
+      try {
+        const ctx = getAudio();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        osc.type = type || 'sine';
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + duration);
+      } catch (_) {}
+    }
+    function soundHighlight() { playTone(440, 0.12, 'sine'); }
+    function soundCorrect() { playTone(523, 0.08, 'sine'); playTone(659, 0.12, 'sine'); }
+    function soundWrong() { playTone(200, 0.25, 'sawtooth'); }
+    function soundLevelComplete() { playTone(523, 0.1, 'sine'); playTone(659, 0.1, 'sine'); playTone(784, 0.2, 'sine'); }
+
+    function formatGameTime(seconds) {
+      const m = Math.floor(seconds / 60);
+      const s = Math.floor(seconds % 60);
+      return m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    function updateGameTimer() {
+      if (!gameTimeEl) return;
+      if (gameStartTime == null) {
+        gameTimeEl.textContent = '—';
+        return;
+      }
+      gameTimeEl.textContent = formatGameTime((Date.now() - gameStartTime) / 1000);
+    }
+
+    function getGridSize(lvl) {
+      return BASE_GRID + lvl - 1;
+    }
+
+    function getStepsCount(lvl) {
+      return BASE_STEPS + (lvl - 1) * STEPS_PER_LEVEL;
+    }
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      $(id).classList.add('active');
+    }
+
+    function buildGrid(size) {
+      const total = size * size;
+      gridEl.innerHTML = '';
+      gridEl.className = 'grid ' + ['style-dark', 'style-numbers', 'style-rainbow', 'style-rainbow-random'][gridStyle];
+      gridEl.style.gridTemplateColumns = `repeat(${size}, var(--cell-size))`;
+      gridEl.style.gridTemplateRows = `repeat(${size}, var(--cell-size))`;
+
+      const hues = gridStyle === 3 ? shuffle([...Array(total)].map((_, i) => (i / total) * 360)) : null;
+      for (let i = 0; i < total; i++) {
+        const li = document.createElement('li');
+        li.className = 'cell';
+        li.dataset.index = String(i);
+        if (gridStyle === 2) {
+          const hue = (i / total) * 360;
+          li.style.background = `hsl(${hue}, 55%, 18%)`;
+          li.style.setProperty('--cell-bg-bright', `hsl(${hue}, 55%, 38%)`);
+          li.style.setProperty('--cell-glow', `hsla(${hue}, 65%, 55%, 0.75)`);
+        } else if (gridStyle === 3 && hues) {
+          const hue = hues[i];
+          li.style.background = `hsl(${hue}, 55%, 18%)`;
+          li.style.setProperty('--cell-bg-bright', `hsl(${hue}, 55%, 38%)`);
+          li.style.setProperty('--cell-glow', `hsla(${hue}, 65%, 55%, 0.75)`);
+        }
+        const span = document.createElement('span');
+        span.className = 'cell-num';
+        span.textContent = i + 1;
+        li.appendChild(span);
+        li.setAttribute('role', 'button');
+        li.setAttribute('tabindex', '0');
+        li.addEventListener('click', () => onCellClick(i));
+        li.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onCellClick(i);
+          }
+        });
+        gridEl.appendChild(li);
+      }
+    }
+
+    function randomSequence(size, length) {
+      const total = size * size;
+      const seq = [];
+      while (seq.length < length) {
+        const n = Math.floor(Math.random() * total);
+        seq.push(n);
+      }
+      return seq;
+    }
+
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function getCell(index) {
+      return gridEl.querySelector(`[data-index="${index}"]`);
+    }
+
+    function highlightCell(index, isUserTap) {
+      return new Promise((resolve) => {
+        const cell = getCell(index);
+        if (cell) {
+          cell.classList.add('highlight');
+          if (isUserTap) soundCorrect();
+          else soundHighlight();
+          setTimeout(() => {
+            cell.classList.remove('highlight');
+            setTimeout(resolve, GAP_MS);
+          }, isUserTap ? 180 : HIGHLIGHT_MS);
+        } else {
+          resolve();
+        }
+      });
+    }
+
+    async function playSequence() {
+      playGeneration += 1;
+      const myGen = playGeneration;
+      isShowing = true;
+      gridEl.querySelectorAll('.cell').forEach(c => {
+        c.classList.remove('wrong', 'correct');
+      });
+      for (const idx of sequence) {
+        if (playGeneration !== myGen) { isShowing = false; return; }
+        await highlightCell(idx, false);
+      }
+      if (playGeneration !== myGen) { isShowing = false; return; }
+      isShowing = false;
+      isInputEnabled = true;
+      playerInput = [];
+      gridEl.querySelectorAll('.cell').forEach(c => c.classList.remove('disabled'));
+    }
+
+    function onCellClick(index) {
+      if (!isInputEnabled || isShowing) return;
+
+      const cell = getCell(index);
+      highlightCell(index, true);
+
+      playerInput.push(index);
+
+      if (playerInput[playerInput.length - 1] !== sequence[playerInput.length - 1]) {
+        isInputEnabled = false;
+        attemptsThisLevel++;
+        totalAttemptsThisGame++;
+        attemptsEl.textContent = attemptsThisLevel;
+        if (totalAttemptsEl) totalAttemptsEl.textContent = totalAttemptsThisGame;
+        cell.classList.add('wrong');
+        soundWrong();
+        setTimeout(() => playSequence(), 700);
+        return;
+      }
+
+      if (playerInput.length === sequence.length) {
+        isInputEnabled = false;
+        gridEl.querySelectorAll('.cell').forEach(c => c.classList.add('disabled'));
+        soundLevelComplete();
+        attemptsAtLevelComplete.push(attemptsThisLevel);
+        if (levelStartTime != null) timePerLevel.push((Date.now() - levelStartTime) / 1000);
+        attemptsThisLevel = 0;
+        attemptsEl.textContent = '0';
+        drawAttemptsChart();
+
+        if (level >= TOTAL_LEVELS) {
+          if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+          setTimeout(() => showScreen('screen-win'), 400);
+        } else {
+          level++;
+          setTimeout(nextLevel, 500);
+        }
+      }
+    }
+
+    function nextLevel() {
+      levelStartTime = Date.now();
+      const size = getGridSize(level);
+      const steps = getStepsCount(level);
+      levelNumEl.textContent = level;
+      if (attemptsLevelNumEl) attemptsLevelNumEl.textContent = level;
+      gridSizeEl.textContent = `${size}×${size}`;
+      stepsCountEl.textContent = steps;
+      attemptsEl.textContent = attemptsThisLevel;
+      buildGrid(size);
+      sequence = randomSequence(size, steps);
+      btnStartNew.textContent = 'New game';
+      btnReplay.disabled = false;
+      setTimeout(playSequence, 400);
+    }
+
+    function resetToInitialState() {
+      playGeneration += 1;
+      level = 1;
+      sequence = [];
+      playerInput = [];
+      attemptsThisLevel = 0;
+      totalAttemptsThisGame = 0;
+      attemptsAtLevelComplete = [];
+      timePerLevel = [];
+      gameStartTime = null;
+      levelStartTime = null;
+      gameStarted = false;
+      isShowing = false;
+      isInputEnabled = false;
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+      showScreen('screen-game');
+      buildGrid(3);
+      levelNumEl.textContent = '1';
+      if (attemptsLevelNumEl) attemptsLevelNumEl.textContent = '1';
+      gridSizeEl.textContent = '—';
+      stepsCountEl.textContent = '—';
+      attemptsEl.textContent = '—';
+      if (totalAttemptsEl) totalAttemptsEl.textContent = '—';
+      if (gameTimeEl) gameTimeEl.textContent = '—';
+      btnStartNew.textContent = 'Start game';
+      btnReplay.disabled = true;
+      drawAttemptsChart();
+    }
+
+    function startGame() {
+      playGeneration += 1;
+      level = 1;
+      attemptsThisLevel = 0;
+      totalAttemptsThisGame = 0;
+      attemptsAtLevelComplete = [];
+      timePerLevel = [];
+      attemptsEl.textContent = '0';
+      if (totalAttemptsEl) totalAttemptsEl.textContent = '0';
+      if (gameTimeEl) gameTimeEl.textContent = '0:00';
+      gameStartTime = Date.now();
+      gameStarted = true;
+      showScreen('screen-game');
+      drawAttemptsChart();
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(updateGameTimer, 1000);
+      nextLevel();
+    }
+
+    function drawAttemptsChart() {
+      const svg = $('attempts-chart');
+      if (!svg) return;
+      const data = attemptsAtLevelComplete;
+      const padding = { top: 8, right: 12, bottom: 22, left: 32 };
+      const w = 360;
+      const h = 100;
+      const innerW = w - padding.left - padding.right;
+      const innerH = h - padding.top - padding.bottom;
+      svg.innerHTML = '';
+      if (data.length === 0) {
+        const axis = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        axis.setAttribute('x', w / 2);
+        axis.setAttribute('y', h / 2);
+        axis.setAttribute('text-anchor', 'middle');
+        axis.setAttribute('fill', 'var(--text-muted)');
+        axis.setAttribute('font-size', '11');
+        axis.textContent = 'Complete levels to see attempts';
+        svg.appendChild(axis);
+        return;
+      }
+      const maxY = Math.max(1, ...data);
+      const numLevels = Math.max(TOTAL_LEVELS, data.length);
+      const barWidth = Math.max(4, (innerW / numLevels) * 0.7);
+      const barGap = innerW / numLevels;
+      const xCenter = (levelNum) => padding.left + (levelNum - 0.5) * barGap;
+      const baselineY = h - padding.bottom;
+      const yScale = (v) => (v / maxY) * innerH;
+
+      const yAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      yAxis.setAttribute('x1', padding.left);
+      yAxis.setAttribute('y1', padding.top);
+      yAxis.setAttribute('x2', padding.left);
+      yAxis.setAttribute('y2', baselineY);
+      yAxis.setAttribute('stroke', 'var(--border)');
+      yAxis.setAttribute('stroke-width', '1');
+      svg.appendChild(yAxis);
+      const xAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      xAxis.setAttribute('x1', padding.left);
+      xAxis.setAttribute('y1', baselineY);
+      xAxis.setAttribute('x2', w - padding.right);
+      xAxis.setAttribute('y2', baselineY);
+      xAxis.setAttribute('stroke', 'var(--border)');
+      xAxis.setAttribute('stroke-width', '1');
+      svg.appendChild(xAxis);
+
+      const yTicks = [];
+      for (let a = 0; a <= maxY; a++) yTicks.push(a);
+      if (maxY > 10) {
+        yTicks.length = 0;
+        const step = Math.ceil(maxY / 5);
+        for (let a = 0; a <= maxY; a += step) yTicks.push(a);
+        if (yTicks[yTicks.length - 1] !== maxY) yTicks.push(maxY);
+      }
+      yTicks.forEach((a) => {
+        const yPos = baselineY - yScale(a);
+        const tick = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        tick.setAttribute('x1', padding.left);
+        tick.setAttribute('y1', yPos);
+        tick.setAttribute('x2', padding.left - 4);
+        tick.setAttribute('y2', yPos);
+        tick.setAttribute('stroke', 'var(--border)');
+        tick.setAttribute('stroke-width', '1');
+        svg.appendChild(tick);
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', padding.left - 6);
+        label.setAttribute('y', yPos + 3);
+        label.setAttribute('text-anchor', 'end');
+        label.setAttribute('fill', 'var(--text-muted)');
+        label.setAttribute('font-size', '9');
+        label.setAttribute('font-family', 'JetBrains Mono, monospace');
+        label.textContent = String(a);
+        svg.appendChild(label);
+      });
+
+      for (let i = 1; i <= numLevels; i++) {
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', xCenter(i));
+        label.setAttribute('y', h - 6);
+        label.setAttribute('text-anchor', 'middle');
+        label.setAttribute('fill', 'var(--text-muted)');
+        label.setAttribute('font-size', '9');
+        label.setAttribute('font-family', 'JetBrains Mono, monospace');
+        label.textContent = String(i);
+        svg.appendChild(label);
+      }
+
+      const maxTime = timePerLevel.length > 0 ? Math.max(0.1, ...timePerLevel) : 1;
+      const innerBarWidth = Math.max(2, barWidth * 0.5);
+
+      data.forEach((v, i) => {
+        const levelNum = i + 1;
+        const cx = xCenter(levelNum);
+        const barH = yScale(v);
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', cx - barWidth / 2);
+        rect.setAttribute('y', baselineY - barH);
+        rect.setAttribute('width', barWidth);
+        rect.setAttribute('height', Math.max(1, barH));
+        rect.setAttribute('fill', 'var(--accent)');
+        rect.setAttribute('stroke', 'var(--border)');
+        rect.setAttribute('stroke-width', '1');
+        rect.setAttribute('rx', '2');
+        svg.appendChild(rect);
+        if (timePerLevel[i] != null) {
+          const timeH = (timePerLevel[i] / maxTime) * barH;
+          const innerRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          innerRect.setAttribute('x', cx - innerBarWidth / 2);
+          innerRect.setAttribute('y', baselineY - timeH);
+          innerRect.setAttribute('width', innerBarWidth);
+          innerRect.setAttribute('height', Math.max(1, timeH));
+          innerRect.setAttribute('fill', 'var(--success)');
+          innerRect.setAttribute('rx', '1');
+          svg.appendChild(innerRect);
+        }
+      });
+    }
+
+    function replayPattern() {
+      if (isShowing || sequence.length === 0) return;
+      attemptsThisLevel++;
+      totalAttemptsThisGame++;
+      attemptsEl.textContent = attemptsThisLevel;
+      if (totalAttemptsEl) totalAttemptsEl.textContent = totalAttemptsThisGame;
+      isInputEnabled = false;
+      gridEl.querySelectorAll('.cell').forEach(c => c.classList.add('disabled'));
+      playSequence();
+    }
+
+    function cycleStyle() {
+      gridStyle = (gridStyle + 1) % 4;
+      btnStyle.textContent = 'Style: ' + STYLE_NAMES[gridStyle];
+      if (gameStarted && sequence.length > 0) {
+        const size = getGridSize(level);
+        buildGrid(size);
+      } else if (!gameStarted) {
+        buildGrid(3);
+      }
+    }
+
+    const chartWrapEl = $('attempts-chart-wrap');
+    const chartToggleRow = $('chart-toggle-row');
+    const btnToggleChart = $('btn-toggle-chart');
+    const btnShowChart = $('btn-show-chart');
+
+    function hideChart() {
+      if (chartWrapEl) chartWrapEl.classList.add('hidden');
+      if (chartToggleRow) chartToggleRow.classList.add('show-when-chart-hidden');
+    }
+
+    function showChart() {
+      if (chartWrapEl) chartWrapEl.classList.remove('hidden');
+      if (chartToggleRow) chartToggleRow.classList.remove('show-when-chart-hidden');
+    }
+
+    if (btnToggleChart) btnToggleChart.addEventListener('click', hideChart);
+    if (btnShowChart) btnShowChart.addEventListener('click', showChart);
+
+    btnStartNew.addEventListener('click', () => {
+      if (gameStarted) resetToInitialState();
+      else startGame();
+    });
+    btnReplay.addEventListener('click', replayPattern);
+    btnStyle.addEventListener('click', cycleStyle);
+    $('btn-play-again').addEventListener('click', startGame);
+
+    buildGrid(3);
+    updateGameTimer();
+  </script>
+</body>
+</html>
